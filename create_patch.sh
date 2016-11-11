@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-diff -urN llvm-src/ llvm-dev/ > hello.patch
+diff -urN -x '*.swp' llvm-src/ llvm-dev/ > hello.patch
