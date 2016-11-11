@@ -1,0 +1,74 @@
+diff -urN -x '*.swp' llvm-src/include/llvm/CodeGen/ISDOpcodes.h llvm-dev/include/llvm/CodeGen/ISDOpcodes.h
+--- llvm-src/include/llvm/CodeGen/ISDOpcodes.h	2016-07-11 23:50:39.000000000 +0300
++++ llvm-dev/include/llvm/CodeGen/ISDOpcodes.h	2016-11-11 02:47:56.353333332 +0300
+@@ -767,7 +767,10 @@
+ 
+     /// BUILTIN_OP_END - This must be the last enum value in this list.
+     /// The target-specific pre-isel opcode values start here.
+-    BUILTIN_OP_END
++    BUILTIN_OP_END,
++
++    /// This corresponds to the llvm.sparc.* intrinsics.
++    XMAC, SRXACC, LRXACC
+   };
+ 
+   /// FIRST_TARGET_MEMORY_OPCODE - Target-specific pre-isel operations
+diff -urN -x '*.swp' llvm-src/include/llvm/IR/IntrinsicsSparc.td llvm-dev/include/llvm/IR/IntrinsicsSparc.td
+--- llvm-src/include/llvm/IR/IntrinsicsSparc.td	1970-01-01 03:00:00.000000000 +0300
++++ llvm-dev/include/llvm/IR/IntrinsicsSparc.td	2016-11-12 01:26:59.386666666 +0300
+@@ -0,0 +1,5 @@
++let TargetPrefix = "sparc" in {
++  def int_sparc_xmac : Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], []>;
++  def int_sparc_srxacc : Intrinsic<[], [llvm_i32_ty], []>;
++  def int_sparc_lrxacc : Intrinsic<[llvm_i32_ty], [], []>;
++}
+diff -urN -x '*.swp' llvm-src/include/llvm/IR/Intrinsics.td llvm-dev/include/llvm/IR/Intrinsics.td
+--- llvm-src/include/llvm/IR/Intrinsics.td	2016-07-11 04:28:42.000000000 +0300
++++ llvm-dev/include/llvm/IR/Intrinsics.td	2016-11-11 21:47:17.949999999 +0300
+@@ -704,3 +704,4 @@
+ include "llvm/IR/IntrinsicsBPF.td"
+ include "llvm/IR/IntrinsicsSystemZ.td"
+ include "llvm/IR/IntrinsicsWebAssembly.td"
++include "llvm/IR/IntrinsicsSparc.td"
+diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcInstrInfo.td llvm-dev/lib/Target/Sparc/SparcInstrInfo.td
+--- llvm-src/lib/Target/Sparc/SparcInstrInfo.td	2016-06-19 14:03:28.000000000 +0300
++++ llvm-dev/lib/Target/Sparc/SparcInstrInfo.td	2016-11-11 14:02:54.299999998 +0300
+@@ -1593,6 +1593,27 @@
+                    "wrpr $rs1, $simm13, $rd", []>;
+ }
+ 
++// Sparc specific intrinsics
++let DecoderNamespace = "SparkV8", Uses = [XACC] in {
++  let rd = 0, Defs = [XACC] in {
++    def XMAC : F3_1<2, 0b000000,
++                   (outs), (ins IntRegs:$rs1, IntRegs:$rs2),
++                   "xmac $rs1, $rs2",
++                   [(int_sparc_xmac i32:$rs1, i32:$rs2)]>;
++
++    let rs2 = 0 in {
++      def SRXACC : F3_1<2, 0b000000,
++                       (outs), (ins IntRegs:$rs1),
++                       "srxacc $rs1",
++                       [(int_sparc_srxacc i32:$rs1)]>;
++    }
++  }
++
++  def LRXACC : F3_1<2, 0b000000,
++                   (outs IntRegs:$rd), (ins),
++                   "lrxacc $rd",
++                   [(set i32:$rd, (int_sparc_lrxacc))]>;
++}
+ //===----------------------------------------------------------------------===//
+ // Non-Instruction Patterns
+ //===----------------------------------------------------------------------===//
+diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcRegisterInfo.td llvm-dev/lib/Target/Sparc/SparcRegisterInfo.td
+--- llvm-src/lib/Target/Sparc/SparcRegisterInfo.td	2016-02-27 15:49:59.000000000 +0300
++++ llvm-dev/lib/Target/Sparc/SparcRegisterInfo.td	2016-11-11 02:00:54.806666666 +0300
+@@ -157,6 +157,7 @@
+ def I5 : Ri<29, "I5">, DwarfRegNum<[29]>;
+ def I6 : Ri<30, "FP">, DwarfRegNum<[30]>;
+ def I7 : Ri<31, "I7">, DwarfRegNum<[31]>;
++def XACC : Ri<32, "XACC">, DwarfRegNum<[32]>;
+ 
+ // Floating-point registers
+ def F0  : Rf< 0,  "F0">, DwarfRegNum<[32]>;
