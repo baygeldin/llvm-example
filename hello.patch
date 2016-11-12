@@ -1,21 +1,6 @@
-diff -urN -x '*.swp' llvm-src/include/llvm/CodeGen/ISDOpcodes.h llvm-dev/include/llvm/CodeGen/ISDOpcodes.h
---- llvm-src/include/llvm/CodeGen/ISDOpcodes.h	2016-07-11 23:50:39.000000000 +0300
-+++ llvm-dev/include/llvm/CodeGen/ISDOpcodes.h	2016-11-11 02:47:56.353333332 +0300
-@@ -767,7 +767,10 @@
- 
-     /// BUILTIN_OP_END - This must be the last enum value in this list.
-     /// The target-specific pre-isel opcode values start here.
--    BUILTIN_OP_END
-+    BUILTIN_OP_END,
-+
-+    /// This corresponds to the llvm.sparc.* intrinsics.
-+    XMAC, SRXACC, LRXACC
-   };
- 
-   /// FIRST_TARGET_MEMORY_OPCODE - Target-specific pre-isel operations
-diff -urN -x '*.swp' llvm-src/include/llvm/IR/IntrinsicsSparc.td llvm-dev/include/llvm/IR/IntrinsicsSparc.td
---- llvm-src/include/llvm/IR/IntrinsicsSparc.td	1970-01-01 03:00:00.000000000 +0300
-+++ llvm-dev/include/llvm/IR/IntrinsicsSparc.td	2016-11-12 01:26:59.386666666 +0300
+diff -urN -x '*.swp' llvm-src/include/llvm/IR/IntrinsicsSPARC.td llvm-dev/include/llvm/IR/IntrinsicsSPARC.td
+--- llvm-src/include/llvm/IR/IntrinsicsSPARC.td	1970-01-01 03:00:00.000000000 +0300
++++ llvm-dev/include/llvm/IR/IntrinsicsSPARC.td	2016-11-12 01:26:59.386666666 +0300
 @@ -0,0 +1,5 @@
 +let TargetPrefix = "sparc" in {
 +  def int_sparc_xmac : Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], []>;
@@ -24,26 +9,28 @@ diff -urN -x '*.swp' llvm-src/include/llvm/IR/IntrinsicsSparc.td llvm-dev/includ
 +}
 diff -urN -x '*.swp' llvm-src/include/llvm/IR/Intrinsics.td llvm-dev/include/llvm/IR/Intrinsics.td
 --- llvm-src/include/llvm/IR/Intrinsics.td	2016-07-11 04:28:42.000000000 +0300
-+++ llvm-dev/include/llvm/IR/Intrinsics.td	2016-11-11 21:47:17.949999999 +0300
++++ llvm-dev/include/llvm/IR/Intrinsics.td	2016-11-12 10:05:49.953333327 +0300
 @@ -704,3 +704,4 @@
  include "llvm/IR/IntrinsicsBPF.td"
  include "llvm/IR/IntrinsicsSystemZ.td"
  include "llvm/IR/IntrinsicsWebAssembly.td"
-+include "llvm/IR/IntrinsicsSparc.td"
++include "llvm/IR/IntrinsicsSPARC.td"
 diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcInstrInfo.td llvm-dev/lib/Target/Sparc/SparcInstrInfo.td
 --- llvm-src/lib/Target/Sparc/SparcInstrInfo.td	2016-06-19 14:03:28.000000000 +0300
-+++ llvm-dev/lib/Target/Sparc/SparcInstrInfo.td	2016-11-11 14:02:54.299999998 +0300
-@@ -1593,6 +1593,27 @@
++++ llvm-dev/lib/Target/Sparc/SparcInstrInfo.td	2016-11-12 10:07:59.669999998 +0300
+@@ -1593,6 +1593,31 @@
                     "wrpr $rs1, $simm13, $rd", []>;
  }
  
-+// Sparc specific intrinsics
-+let DecoderNamespace = "SparkV8", Uses = [XACC] in {
++// SPARC specific intrinsics
++let DecoderNamespace = "SparkV8" in {
 +  let rd = 0, Defs = [XACC] in {
-+    def XMAC : F3_1<2, 0b000000,
-+                   (outs), (ins IntRegs:$rs1, IntRegs:$rs2),
-+                   "xmac $rs1, $rs2",
-+                   [(int_sparc_xmac i32:$rs1, i32:$rs2)]>;
++    let Uses = [XACC] in {
++      def XMAC : F3_1<2, 0b000000,
++                     (outs), (ins IntRegs:$rs1, IntRegs:$rs2),
++                     "xmac $rs1, $rs2",
++                     [(int_sparc_xmac i32:$rs1, i32:$rs2)]>;
++    }
 +
 +    let rs2 = 0 in {
 +      def SRXACC : F3_1<2, 0b000000,
@@ -53,10 +40,12 @@ diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcInstrInfo.td llvm-dev/lib/Ta
 +    }
 +  }
 +
-+  def LRXACC : F3_1<2, 0b000000,
-+                   (outs IntRegs:$rd), (ins),
-+                   "lrxacc $rd",
-+                   [(set i32:$rd, (int_sparc_lrxacc))]>;
++  let rs1 = 0, rs2 = 0, Uses = [XACC] in {
++    def LRXACC : F3_1<2, 0b000000,
++                     (outs IntRegs:$rd), (ins),
++                     "lrxacc $rd",
++                     [(set i32:$rd, (int_sparc_lrxacc))]>;
++  }
 +}
  //===----------------------------------------------------------------------===//
  // Non-Instruction Patterns
@@ -72,3 +61,126 @@ diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcRegisterInfo.td llvm-dev/lib
  
  // Floating-point registers
  def F0  : Rf< 0,  "F0">, DwarfRegNum<[32]>;
+diff -urN -x '*.swp' llvm-src/tools/clang/include/clang/Basic/BuiltinsSPARC.def llvm-dev/tools/clang/include/clang/Basic/BuiltinsSPARC.def
+--- llvm-src/tools/clang/include/clang/Basic/BuiltinsSPARC.def	1970-01-01 03:00:00.000000000 +0300
++++ llvm-dev/tools/clang/include/clang/Basic/BuiltinsSPARC.def	2016-11-12 06:02:15.269999997 +0300
+@@ -0,0 +1,10 @@
++#if defined(BUILTIN) && !defined(LANGBUILTIN)
++#   define LANGBUILTIN(ID, TYPE, ATTRS, BUILTIN_LANG) BUILTIN(ID, TYPE, ATTRS)
++#endif
++
++BUILTIN(__xmac, "vii", "n")
++BUILTIN(__srxacc, "vi", "n")
++BUILTIN(__lrxacc, "i", "n")
++
++#undef BUILTIN
++#undef LANGBUILTIN
+diff -urN -x '*.swp' llvm-src/tools/clang/include/clang/Basic/TargetBuiltins.h llvm-dev/tools/clang/include/clang/Basic/TargetBuiltins.h
+--- llvm-src/tools/clang/include/clang/Basic/TargetBuiltins.h	2015-09-04 01:51:53.000000000 +0300
++++ llvm-dev/tools/clang/include/clang/Basic/TargetBuiltins.h	2016-11-12 04:27:32.736666666 +0300
+@@ -42,6 +42,16 @@
+     };
+   }
+ 
++  /// \brief SPARC builtins
++  namespace SPARC {
++    enum {
++      LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
++#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
++#include "clang/Basic/BuiltinsSPARC.def"
++      LastTSBuiltin
++    };
++  }
++
+   /// \brief AArch64 builtins
+   namespace AArch64 {
+   enum {
+diff -urN -x '*.swp' llvm-src/tools/clang/lib/Basic/Targets.cpp llvm-dev/tools/clang/lib/Basic/Targets.cpp
+--- llvm-src/tools/clang/lib/Basic/Targets.cpp	2016-07-25 19:21:28.000000000 +0300
++++ llvm-dev/tools/clang/lib/Basic/Targets.cpp	2016-11-12 09:01:15.443333332 +0300
+@@ -6372,6 +6372,7 @@
+ class SparcTargetInfo : public TargetInfo {
+   static const TargetInfo::GCCRegAlias GCCRegAliases[];
+   static const char * const GCCRegNames[];
++  static const Builtin::Info BuiltinInfo[];
+   bool SoftFloat;
+ public:
+   SparcTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
+@@ -6413,8 +6414,8 @@
+   }
+ 
+   ArrayRef<Builtin::Info> getTargetBuiltins() const override {
+-    // FIXME: Implement!
+-    return None;
++    return llvm::makeArrayRef(BuiltinInfo,
++      clang::SPARC::LastTSBuiltin - Builtin::FirstTSBuiltin);
+   }
+   BuiltinVaListKind getBuiltinVaListKind() const override {
+     return TargetInfo::VoidPtrBuiltinVaList;
+@@ -6547,6 +6548,14 @@
+   }
+ };
+ 
++const Builtin::Info SparcTargetInfo::BuiltinInfo[] = {
++#define BUILTIN(ID, TYPE, ATTRS) \
++  { #ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr },
++#define LIBBUILTIN(ID, TYPE, ATTRS, HEADER) \
++  { #ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr },
++#include "clang/Basic/BuiltinsSPARC.def"
++};
++
+ const char * const SparcTargetInfo::GCCRegNames[] = {
+   "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+   "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+diff -urN -x '*.swp' llvm-src/tools/clang/lib/CodeGen/CGBuiltin.cpp llvm-dev/tools/clang/lib/CodeGen/CGBuiltin.cpp
+--- llvm-src/tools/clang/lib/CodeGen/CGBuiltin.cpp	2016-08-08 19:32:10.000000000 +0300
++++ llvm-dev/tools/clang/lib/CodeGen/CGBuiltin.cpp	2016-11-12 04:48:08.363333332 +0300
+@@ -2503,6 +2503,8 @@
+   case llvm::Triple::wasm32:
+   case llvm::Triple::wasm64:
+     return CGF->EmitWebAssemblyBuiltinExpr(BuiltinID, E);
++  case llvm::Triple::sparc:
++    return CGF->EmitSPARCBuiltinExpr(BuiltinID, E);
+   default:
+     return nullptr;
+   }
+@@ -3952,6 +3954,28 @@
+   return true;
+ }
+ 
++Value *CodeGenFunction::EmitSPARCBuiltinExpr(unsigned BuiltinID,
++                                         const CallExpr *E) {
++  switch (BuiltinID) {
++  default: llvm_unreachable("unexpected builtin");
++  case SPARC::BI__xmac: {
++    Value *src1 = EmitScalarExpr(E->getArg(0));
++    Value *src2 = EmitScalarExpr(E->getArg(1));
++    Value *F = CGM.getIntrinsic(Intrinsic::sparc_xmac);
++    return Builder.CreateCall(F, {src1, src2});
++  }
++  case SPARC::BI__srxacc: {
++    Value *src = EmitScalarExpr(E->getArg(0));
++    Value *F = CGM.getIntrinsic(Intrinsic::sparc_srxacc);
++    return Builder.CreateCall(F, src);
++  }
++  case SPARC::BI__lrxacc: {
++    Value *F = CGM.getIntrinsic(Intrinsic::sparc_lrxacc);
++    return Builder.CreateCall(F);
++  }
++  }
++}
++
+ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
+                                            const CallExpr *E) {
+   if (auto Hint = GetValueForARMHint(BuiltinID))
+diff -urN -x '*.swp' llvm-src/tools/clang/lib/CodeGen/CodeGenFunction.h llvm-dev/tools/clang/lib/CodeGen/CodeGenFunction.h
+--- llvm-src/tools/clang/lib/CodeGen/CodeGenFunction.h	2016-07-14 05:54:56.000000000 +0300
++++ llvm-dev/tools/clang/lib/CodeGen/CodeGenFunction.h	2016-11-12 04:31:11.686666665 +0300
+@@ -2940,6 +2940,7 @@
+   llvm::Value *EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
+                                           const CallExpr *E);
++  llvm::Value *EmitSPARCBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+ 
+   llvm::Value *EmitObjCProtocolExpr(const ObjCProtocolExpr *E);
+   llvm::Value *EmitObjCStringLiteral(const ObjCStringLiteral *E);
