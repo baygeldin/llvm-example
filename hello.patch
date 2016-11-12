@@ -61,6 +61,37 @@ diff -urN -x '*.swp' llvm-src/lib/Target/Sparc/SparcRegisterInfo.td llvm-dev/lib
  
  // Floating-point registers
  def F0  : Rf< 0,  "F0">, DwarfRegNum<[32]>;
+diff -urN -x '*.swp' llvm-src/test/CodeGen/SPARC/intrinsics.ll llvm-dev/test/CodeGen/SPARC/intrinsics.ll
+--- llvm-src/test/CodeGen/SPARC/intrinsics.ll	1970-01-01 03:00:00.000000000 +0300
++++ llvm-dev/test/CodeGen/SPARC/intrinsics.ll	2016-11-12 21:41:02.799999990 +0300
+@@ -0,0 +1,27 @@
++; RUN: llc < %s -march=sparc | FileCheck %s
++target datalayout = "E-m:e-p:32:32-i64:64-f128:64-n32-S64"
++target triple = "sparc"
++
++; Function Attrs: nounwind
++define void @foo() local_unnamed_addr #0 {
++  ; CHECK-LABEL: foo:
++  ; srxacc
++  ; xmac
++  ; lrxacc
++  tail call void @llvm.sparc.srxacc(i32 0)
++  tail call void @llvm.sparc.xmac(i32 42, i32 42)
++  %1 = tail call i32 @llvm.sparc.lrxacc()
++  ret void
++}
++
++; Function Attrs: nounwind
++declare void @llvm.sparc.srxacc(i32) #1
++
++; Function Attrs: nounwind
++declare void @llvm.sparc.xmac(i32, i32) #1
++
++; Function Attrs: nounwind
++declare i32 @llvm.sparc.lrxacc() #1
++
++attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
++attributes #1 = { nounwind }
 diff -urN -x '*.swp' llvm-src/tools/clang/include/clang/Basic/BuiltinsSPARC.def llvm-dev/tools/clang/include/clang/Basic/BuiltinsSPARC.def
 --- llvm-src/tools/clang/include/clang/Basic/BuiltinsSPARC.def	1970-01-01 03:00:00.000000000 +0300
 +++ llvm-dev/tools/clang/include/clang/Basic/BuiltinsSPARC.def	2016-11-12 06:02:15.269999997 +0300
@@ -184,3 +215,19 @@ diff -urN -x '*.swp' llvm-src/tools/clang/lib/CodeGen/CodeGenFunction.h llvm-dev
  
    llvm::Value *EmitObjCProtocolExpr(const ObjCProtocolExpr *E);
    llvm::Value *EmitObjCStringLiteral(const ObjCStringLiteral *E);
+diff -urN -x '*.swp' llvm-src/tools/clang/test/CodeGen/sparc-builtins.c llvm-dev/tools/clang/test/CodeGen/sparc-builtins.c
+--- llvm-src/tools/clang/test/CodeGen/sparc-builtins.c	1970-01-01 03:00:00.000000000 +0300
++++ llvm-dev/tools/clang/test/CodeGen/sparc-builtins.c	2016-11-12 21:16:27.813333331 +0300
+@@ -0,0 +1,12 @@
++// RUN: %clang_cc1 -triple sparc -O3 -S -emit-llvm %s -o - | FileCheck %s
++
++void foo(){
++  int acc = 0;
++  int x = 42, y = 42;
++  // CHECK: call void @llvm.sparc.srxacc(i32 0)
++  __srxacc(acc);  
++  // CHECK: call void @llvm.sparc.xmac(i32 42, i32 42)
++  __xmac(x, y);
++  // CHECK: call i32 @llvm.sparc.lrxacc()
++  acc = __lrxacc();
++}
