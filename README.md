@@ -1,2 +1,2 @@
-# llvm-synopsys
-Example of LLVM extending for Clang and SPARC.
+# llvm-example
+Example of LLVM extending for Clang and SPARC backend with custom instructions.
